@@ -22,6 +22,8 @@ import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import android.util.Log;
 
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -123,6 +125,7 @@ public class AuthKeyGenerator {
 
         Key key = ks.getKey(keyAlias, null);
         privateKey = (PrivateKey) key;
+        Log.i(TAG, "Key algorithm is " + key.getAlgorithm());
 
         if (isInSecureHardware()) {
             Log.i(TAG, "Private key is in secure hardware");
@@ -181,6 +184,12 @@ public class AuthKeyGenerator {
                         "cloud_iot_auth_certificate.pem");
                 try (FileOutputStream os = new FileOutputStream(outFile)) {
                     writeCertificatePEM(os);
+                } catch (Exception e) {
+                    Log.e(TAG, "Unable to write certificate file", e);
+                }
+                try (OutputStream os = new ByteArrayOutputStream()) {
+                    writeCertificatePEM(os);
+                    Log.i(TAG, "Public cert:\n" + os.toString());
                 }
             } catch (GeneralSecurityException | IOException e) {
                 if (e instanceof FileNotFoundException &&
