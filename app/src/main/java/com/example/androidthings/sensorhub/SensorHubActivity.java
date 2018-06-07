@@ -32,6 +32,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -40,6 +42,7 @@ public class SensorHubActivity extends Activity {
     private static final String TAG = SensorHubActivity.class.getSimpleName();
 
     private static final String CONFIG_SHARED_PREFERENCES_KEY = "cloud_iot_config";
+    public static final int PROVISIONING_CHECK_MS = 10000;
 
     private final AtomicBoolean provisionCheckActive = new AtomicBoolean();
     private final AtomicBoolean provisionDataDirty = new AtomicBoolean();
@@ -59,7 +62,7 @@ public class SensorHubActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
-        spawnProvisioningThread();
+        scheduleProvisioningThread();
         SharedPreferences prefs = getSharedPreferences(CONFIG_SHARED_PREFERENCES_KEY, MODE_PRIVATE);
         Parameters params = readParameters(prefs, getIntent().getExtras());
         if (params != null) {
@@ -121,33 +124,33 @@ public class SensorHubActivity extends Activity {
         return params;
     }
 
-    private void spawnProvisioningThread() {
-        if (!provisionCheckActive.getAndSet(true)) {
-            Thread backgroundThread = new Thread(new ProvisioningThread());
-            backgroundThread.start();
-        }
+    private void scheduleProvisioningThread() {
+        Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(new ProvisioningThread(),
+                PROVISIONING_CHECK_MS, PROVISIONING_CHECK_MS, TimeUnit.MILLISECONDS);
     }
 
     // Thread for handling blocking network operations.
     private class ProvisioningThread implements Runnable {
         @Override
         public void run() {
-            try {
-                Parameters params = fetchProvisioningConfig();
-                if (params == null) {
-                    return;
+            if (!provisionCheckActive.getAndSet(true)) {
+                try {
+                    Parameters params = fetchProvisioningConfig();
+                    if (params == null) {
+                        return;
+                    }
+                    String paramKey = params.toString();
+                    if (!paramKey.equals(savedParamKey.getAndSet(paramKey))) {
+                        SharedPreferences prefs = getSharedPreferences(CONFIG_SHARED_PREFERENCES_KEY, MODE_PRIVATE);
+                        params.saveToPreferences(prefs);
+                        initializeHub(params);
+                        Log.i(TAG, "Provisioning information updated");
+                    } else {
+                        Log.i(TAG, "Provisioning information unchanged");
+                    }
+                } finally {
+                    provisionCheckActive.set(false);
                 }
-                String paramKey = params.toString();
-                if (!paramKey.equals(savedParamKey.getAndSet(paramKey))) {
-                    SharedPreferences prefs = getSharedPreferences(CONFIG_SHARED_PREFERENCES_KEY, MODE_PRIVATE);
-                    params.saveToPreferences(prefs);
-                    initializeHub(params);
-                    Log.i(TAG, "Provisioning information updated");
-                } else {
-                    Log.i(TAG, "Provisioning information unchanged");
-                }
-            } finally {
-                provisionCheckActive.set(false);
             }
         }
     }
@@ -167,7 +170,7 @@ public class SensorHubActivity extends Activity {
     }
 
     private String findConnectionUrl() {
-        //return "http://api.myjson.com/bins/13mqyq"; // llama_1
-        return "http://api.myjson.com/bins/dhtia"; // llama_2
+        // Edit at https://pastebin.com/yRiJ7uJD
+        return "http://pastebin.com/raw/yRiJ7uJD";
     }
 }
