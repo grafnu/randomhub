@@ -16,8 +16,13 @@
 package com.example.androidthings.sensorhub;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.RouteInfo;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -25,10 +30,12 @@ import com.example.androidthings.sensorhub.collector.RandomNumberCollector;
 import com.example.androidthings.sensorhub.iotcore.SensorHub;
 
 import org.apache.commons.io.IOUtils;
+import org.json.JSONException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -45,7 +52,6 @@ public class SensorHubActivity extends Activity {
     public static final int PROVISIONING_CHECK_MS = 10000;
 
     private final AtomicBoolean provisionCheckActive = new AtomicBoolean();
-    private final AtomicBoolean provisionDataDirty = new AtomicBoolean();
     private final AtomicReference<String> savedParamKey = new AtomicReference<>();
 
     private SensorHub sensorHub;
@@ -133,6 +139,7 @@ public class SensorHubActivity extends Activity {
     private class ProvisioningThread implements Runnable {
         @Override
         public void run() {
+            Log.i(TAG, "Starting provisioning check");
             if (!provisionCheckActive.getAndSet(true)) {
                 try {
                     Parameters params = fetchProvisioningConfig();
@@ -149,6 +156,7 @@ public class SensorHubActivity extends Activity {
                         Log.i(TAG, "Provisioning information unchanged");
                     }
                 } finally {
+                    Log.i(TAG, "Ending provisioning check");
                     provisionCheckActive.set(false);
                 }
             }
@@ -157,20 +165,44 @@ public class SensorHubActivity extends Activity {
 
     private Parameters fetchProvisioningConfig() {
         try {
-            URL url = new URL(findConnectionUrl());
+            String connectionUrl = findConnectionUrl();
+            URL url = new URL(connectionUrl);
             HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
             InputStream inputStream = urlConnection.getInputStream();
             String text = IOUtils.toString(inputStream, StandardCharsets.UTF_8.name());
             urlConnection.disconnect();
             return Parameters.parse(text);
+        } catch (JSONException e) {
+            Log.e(TAG, "Failure parsing fetched json", e);
+            return null;
         } catch (Exception e) {
             Log.e(TAG, "Could not connect to provisioning server", e);
             return null;
         }
     }
 
+    private String findGatewayAddress() {
+        Object systemService = getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (systemService == null) {
+            Log.e(TAG, "No connectivity_service found");
+            return null;
+        }
+        ConnectivityManager cm = (ConnectivityManager) systemService;
+        Network network = cm.getActiveNetwork();
+        LinkProperties prop = cm.getLinkProperties(network);
+        for (RouteInfo info : prop.getRoutes()) {
+            InetAddress gateway = info.getGateway();
+            if (!gateway.isAnyLocalAddress()) {
+                Log.i(TAG, "Gateway is " + gateway);
+                return gateway.getHostAddress();
+            }
+        }
+        return null;
+    }
+
     private String findConnectionUrl() {
+        return String.format("http://%s:8000/config.json", findGatewayAddress());
         // Edit at https://pastebin.com/yRiJ7uJD
-        return "http://pastebin.com/raw/yRiJ7uJD";
+        // return "http://pastebin.com/raw/yRiJ7uJD";
     }
 }
