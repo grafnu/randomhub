@@ -21,19 +21,29 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 
-import com.example.androidthings.sensorhub.collector.Bmx280Collector;
-import com.example.androidthings.sensorhub.collector.MotionCollector;
 import com.example.androidthings.sensorhub.collector.RandomNumberCollector;
 import com.example.androidthings.sensorhub.iotcore.SensorHub;
 
+import org.apache.commons.io.IOUtils;
+
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class SensorHubActivity extends Activity {
 
     private static final String TAG = SensorHubActivity.class.getSimpleName();
 
     private static final String CONFIG_SHARED_PREFERENCES_KEY = "cloud_iot_config";
+
+    private final AtomicBoolean provisionCheckActive = new AtomicBoolean();
+    private final AtomicBoolean provisionDataDirty = new AtomicBoolean();
+    private final AtomicReference<String> savedParamKey = new AtomicReference<>();
 
     private SensorHub sensorHub;
 
@@ -49,10 +59,11 @@ public class SensorHubActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        spawnProvisioningThread();
         SharedPreferences prefs = getSharedPreferences(CONFIG_SHARED_PREFERENCES_KEY, MODE_PRIVATE);
         Parameters params = readParameters(prefs, getIntent().getExtras());
         if (params != null) {
-            params.saveToPreferences(prefs);
+            savedParamKey.set(params.toString());
             initializeHub(params);
         }
     }
@@ -110,4 +121,53 @@ public class SensorHubActivity extends Activity {
         return params;
     }
 
+    private void spawnProvisioningThread() {
+        if (!provisionCheckActive.getAndSet(true)) {
+            Thread backgroundThread = new Thread(new ProvisioningThread());
+            backgroundThread.start();
+        }
+    }
+
+    // Thread for handling blocking network operations.
+    private class ProvisioningThread implements Runnable {
+        @Override
+        public void run() {
+            try {
+                Parameters params = fetchProvisioningConfig();
+                if (params == null) {
+                    return;
+                }
+                String paramKey = params.toString();
+                if (!paramKey.equals(savedParamKey.getAndSet(paramKey))) {
+                    SharedPreferences prefs = getSharedPreferences(CONFIG_SHARED_PREFERENCES_KEY, MODE_PRIVATE);
+                    params.saveToPreferences(prefs);
+                    initializeHub(params);
+                    Log.i(TAG, "Provisioning information updated");
+                } else {
+                    Log.i(TAG, "Provisioning information unchanged");
+                }
+            } finally {
+                provisionCheckActive.set(false);
+            }
+        }
+    }
+
+    private Parameters fetchProvisioningConfig() {
+        try {
+            URL url = new URL(findConnectionUrl());
+            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+            InputStream inputStream = urlConnection.getInputStream();
+            String text = IOUtils.toString(inputStream, StandardCharsets.UTF_8.name());
+            urlConnection.disconnect();
+            return Parameters.parse(text);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not connect to provisioning server", e);
+            return null;
+        }
+    }
+
+    private String findConnectionUrl() {
+        //return "http://api.myjson.com/bins/13mqyq"; // llama_1
+        return "http://api.myjson.com/bins/dhtia"; // llama_2
+    }
 }

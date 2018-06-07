@@ -24,6 +24,9 @@ import android.util.Log;
 
 import com.google.android.things.iotcore.ConnectionParams;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /**
  * Container for the Cloud IoT Core initialization parameters
  */
@@ -115,6 +118,21 @@ public class Parameters {
             params.keyAlgorithm = bundle.getString("key_algorithm", params.keyAlgorithm);
         }
 
+        if (!params.isValid()) {
+            Log.w(TAG, "Invalid parameters: " + params);
+            return null;
+        }
+        return params;
+    }
+
+    public static Parameters parse(String text) throws JSONException {
+        JSONObject prefs = new JSONObject(text);
+        Parameters params = new Parameters();
+        params.projectId = prefs.optString("project_id", null);
+        params.registryId = prefs.optString("registry_id", null);
+        params.cloudRegion = prefs.optString("cloud_region", null);
+        params.deviceId = prefs.optString("device_id", null);
+        params.keyAlgorithm = prefs.optString("key_algorithm", null);
         if (!params.isValid()) {
             Log.w(TAG, "Invalid parameters: " + params);
             return null;
