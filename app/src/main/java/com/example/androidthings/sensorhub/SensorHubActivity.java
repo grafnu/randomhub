@@ -23,6 +23,7 @@ import android.util.Log;
 
 import com.example.androidthings.sensorhub.collector.Bmx280Collector;
 import com.example.androidthings.sensorhub.collector.MotionCollector;
+import com.example.androidthings.sensorhub.collector.RandomNumberCollector;
 import com.example.androidthings.sensorhub.iotcore.SensorHub;
 
 import java.io.IOException;
@@ -69,10 +70,11 @@ public class SensorHubActivity extends Activity {
                 "Key algorithm: " + params.getKeyAlgorithm());
 
         sensorHub = new SensorHub(params);
-        sensorHub.registerSensorCollector(new Bmx280Collector(
-                BoardDefaults.getI2cBusForSensors()));
-        sensorHub.registerSensorCollector(new MotionCollector(
-                BoardDefaults.getGPIOForMotionDetector()));
+        sensorHub.registerSensorCollector(new RandomNumberCollector());
+//        sensorHub.registerSensorCollector(new Bmx280Collector(
+//                BoardDefaults.getI2cBusForSensors()));
+//        sensorHub.registerSensorCollector(new MotionCollector(
+//                BoardDefaults.getGPIOForMotionDetector()));
 
         try {
             sensorHub.start();

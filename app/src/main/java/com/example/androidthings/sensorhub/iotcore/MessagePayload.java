@@ -97,14 +97,14 @@ public class MessagePayload {
         try {
             JSONObject message = new JSONObject(jsonPayload);
             DeviceConfig deviceConfig = new DeviceConfig();
-            deviceConfig.version = message.getInt("version");
-            deviceConfig.telemetryEventsPerHour = message.getInt("telemetry-events-per-hour");
-            deviceConfig.stateUpdatesPerHour = message.getInt("state-updates-per-hour");
-            JSONArray activeSensors = message.getJSONArray("active-sensors");
-            deviceConfig.activeSensors = new String[activeSensors.length()];
-            for (int i = 0; i < activeSensors.length(); i++) {
-                deviceConfig.activeSensors[i] = activeSensors.getString(i);
-            }
+            deviceConfig.version = message.optInt("version", 0);
+            deviceConfig.telemetryEventsPerHour = message.optInt("telemetry-events-per-hour", 0);
+            deviceConfig.stateUpdatesPerHour = message.optInt("state-updates-per-hour", 0);
+//            JSONArray activeSensors = message.getJSONArray("active-sensors");
+//            deviceConfig.activeSensors = new String[activeSensors.length()];
+//            for (int i = 0; i < activeSensors.length(); i++) {
+//                deviceConfig.activeSensors[i] = activeSensors.getString(i);
+//            }
             return deviceConfig;
         } catch (JSONException e) {
             throw new IllegalArgumentException("Invalid message: \"" + jsonPayload + "\"", e);

@@ -158,38 +158,28 @@ public class SensorHub {
             Log.w(TAG, "Ignoring empty device config event");
             return;
         }
-        MessagePayload.DeviceConfig deviceConfig = MessagePayload.parseDeviceConfigPayload(
-                new String(bytes));
-        if (deviceConfig.version <= configurationVersion) {
-            Log.w(TAG, "Ignoring device config message with old version. Current version: " +
-                    configurationVersion + ", Version received: " + deviceConfig.version);
-            return;
-        }
-        Log.i(TAG, "Applying device config: " + deviceConfig);
-        configurationVersion = deviceConfig.version;
+        try {
+            MessagePayload.DeviceConfig deviceConfig = MessagePayload.parseDeviceConfigPayload(
+                    new String(bytes));
+            if (deviceConfig.version <= configurationVersion) {
+                Log.w(TAG, "Ignoring device config message with old version. Current version: " +
+                        configurationVersion + ", Version received: " + deviceConfig.version);
+                return;
+            }
+            Log.i(TAG, "Applying device config: " + deviceConfig);
+            configurationVersion = deviceConfig.version;
 
-        recurrentTasksHandler.post(() -> {
-            reconfigure(deviceConfig);
-        });
+            recurrentTasksHandler.post(() -> {
+                reconfigure(deviceConfig);
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "While applying device config", e);
+        }
     }
 
     private void reconfigure(MessagePayload.DeviceConfig deviceConfig) {
         telemetryEventsPerHour = deviceConfig.telemetryEventsPerHour;
         stateUpdatesPerHour = deviceConfig.stateUpdatesPerHour;
-
-        HashSet<String> toEnable = new HashSet<>(Arrays.asList(deviceConfig.activeSensors));
-
-        for (SensorCollector collector: collectors) {
-            for (String sensor: collector.getAvailableSensors()) {
-                boolean enable = toEnable.remove(sensor);
-                collector.setEnabled(sensor, enable);
-            }
-        }
-
-        if (!toEnable.isEmpty()) {
-            Log.w(TAG, "Ignoring unknown sensors in device config active-sensors: " +
-                    toEnable);
-        }
 
         // reconfigure recurrent tasks:
         recurrentTasksHandler.removeCallbacks(recurrentTelemetryPublisher);
